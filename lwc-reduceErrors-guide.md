@@ -2,89 +2,50 @@
 
 ## 回答
 
-いいえ、**常に使う必要はありません。** `reduceErrors`は、Salesforceから返ってきたエラーを、画面に表示しやすい**メッセージの配列**に変えるための補助関数です。エラー処理そのものを全部任せる関数ではありません。
+**いいえ。必要なときだけ使えば十分です。** `reduceErrors`は、エラーから**画面に表示する文章を取り出す**ための関数です。エラーを直したり、エラーの種類に応じて処理を分けたりする関数ではありません。
 
-たとえば、Apexのエラーでは`error.body.message`に文言が入ることがあります。一方、`getRecord`などのUI APIでは`error.body`が配列になるなど、返り方が異なります。複数の返り方をまとめて扱いたいときに`reduceErrors`が役立ちます。
+### 使うとき
 
-**公式資料の該当箇所：** [Salesforce Developers「Handle Errors in Lightning Data Service」](https://developer.salesforce.com/docs/platform/lwc/guide/data-error.html)の「The body of the error response depends on the API that returns it」（APIごとの`body`の形）と、同ページの`ldsUtils`への案内。**「常に使う必要はない」という結論そのものを定めた公式リファレンスはありません。** 関数の用途からの判断です。
-
-### Q. どんなときに使うと便利ですか？
-
-次のように、エラーから表示用の文言を取り出したいときです。
-
-- Apex、UI API、JavaScriptなど、**形の異なるエラーから表示文言を取り出したい**。
-- **複数のエラーメッセージをまとめて表示したい**。
-- 同じメッセージ取り出し処理を、複数のコンポーネントで使いたい。
+ApexやUI APIなど、**返ってくるエラーの形が違っても、表示文言をまとめて取り出したいとき**に便利です。複数のメッセージも配列で受け取れます。
 
 ```js
-// LWC Recipes の ldsUtils.js をプロジェクトに配置した場合
+// LWC RecipesのldsUtils.jsをプロジェクトに置いた場合
 import { reduceErrors } from 'c/ldsUtils';
 
-const messages = reduceErrors(error); // 文字列の配列
-this.errorMessage = messages.join('、') || '処理に失敗しました。';
+this.errorMessage = reduceErrors(error).join(' / ');
 ```
 
-`reduceErrors`はSalesforceの組み込み関数ではなく、[LWC Recipesのサンプル実装](https://github.com/trailheadapps/lwc-recipes/blob/main/force-app/main/default/lwc/ldsUtils/ldsUtils.js)です。上の例は、そのファイルを自分のプロジェクトに置いた場合の書き方です。
+`reduceErrors`はSalesforceの組み込み関数ではなく、[LWC Recipesのサンプル実装](https://github.com/trailheadapps/lwc-recipes/blob/main/force-app/main/default/lwc/ldsUtils/ldsUtils.js)です。
 
-**公式資料の該当箇所：** [Salesforce Developers Blog「Displaying and logging errors」](https://developer.salesforce.com/blogs/2020/08/error-handling-best-practices-for-lightning-web-components)に、異なる形のエラーから文言を取り出すための`reduceErrors`の説明があります。返り値が文字列の配列であることは、上記の[LWC Recipesの実装](https://github.com/trailheadapps/lwc-recipes/blob/main/force-app/main/default/lwc/ldsUtils/ldsUtils.js)の関数コメントと処理で確認できます。
+**公式資料の該当箇所：** [LWC「Handle Errors in Lightning Data Service」](https://developer.salesforce.com/docs/platform/lwc/guide/data-error.html)の「The body of the error response depends on the API that returns it」に、APIごとにエラーの形が違うことと、`ldsUtils`の案内があります。
 
-### Q. 使わなくてよいのは、どんなときですか？
+### 使わない例（3つ）
 
-エラーの形が分かっている場合や、メッセージを取り出すことが目的ではない場合です。以下はコンポーネント内の処理を抜き出した例で、`this.errorMessage`は画面表示用のプロパティを想定しています。
+以下はコンポーネント内の短い抜粋です。`this.errorMessage`は画面表示用のプロパティを想定しています。
 
-#### 1. Apexエラーの`message`だけを表示したい場合は？
-
-呼び出しているApexのエラー形式が分かっていて、文言を1つ表示できれば十分な場合です。
+**1. Apexエラーの文章を1つだけ表示する**
 
 ```js
-try {
-    await saveRecord();
-} catch (error) {
+catch (error) {
     this.errorMessage = error?.body?.message || '保存できませんでした。';
 }
 ```
 
-**注意：** 別のAPIのエラーにもこの書き方を流用すると、`body.message`が存在しない場合があります。
+呼び出しているApexのエラー形式が分かっていれば、直接取り出せます。**公式資料の該当箇所：** [Salesforce Developers Blog「Understanding the error body payload」](https://developer.salesforce.com/blogs/2020/08/error-handling-best-practices-for-lightning-web-components)の`body.message`の説明。
 
-**公式資料の該当箇所：** [Salesforce Developers Blog「Understanding the error body payload」](https://developer.salesforce.com/blogs/2020/08/error-handling-best-practices-for-lightning-web-components)に、Apexエラーの`body.message`とAPIごとの`body`の違いが説明されています。**「Apexだけなら直接取得すべき」という公式の指定はありません。** 上のコードは、エラーの形が分かっている場合の簡単な書き方です。
-
-#### 2. エラーコードで処理を分けたい場合は？
-
-利用者への案内や画面の動きを、エラーの種類ごとに変えたい場合です。`reduceErrors`が返すのはメッセージだけなので、分岐には元の`error`を使います。
+**2. エラーコードで分け、決まった文章を表示する**
 
 ```js
-// getRecord など、error.body が配列のケース
+// getRecordなど、error.bodyが配列の場合
 const code = error?.body?.[0]?.errorCode;
-
-if (code === 'INSUFFICIENT_PRIVILEGES') {
-    this.errorMessage = 'このレコードを表示する権限がありません。';
-} else {
-    this.errorMessage = '読み込めませんでした。';
-}
+this.errorMessage = code === 'INSUFFICIENT_PRIVILEGES'
+    ? '閲覧権限がありません。'
+    : '読み込めませんでした。';
 ```
 
-**注意：** `errorCode`の場所や値は、利用するAPIと実際のエラー応答で確認してください。
+分岐には、文章に変換する前の`error`を使います。コードの場所と値は実際の応答で確認してください。**公式資料の該当箇所：** [LWCのエラー形式](https://developer.salesforce.com/docs/platform/lwc/guide/data-error.html)にUI API読み取り時の配列、[User Interface API Developer Guide「Error Message」](https://resources.docs.salesforce.com/latest/latest/en-us/sfdc/pdf/api_ui.pdf)に`errorCode`と値の例があります。
 
-**公式資料の該当箇所：** [Salesforce Developers「Handle Errors in Lightning Data Service」](https://developer.salesforce.com/docs/platform/lwc/guide/data-error.html)は、UI APIの読み取りエラーでは`body`が配列になると説明しています。[User Interface API Developer Guide「Error Message」](https://resources.docs.salesforce.com/latest/latest/en-us/sfdc/pdf/api_ui.pdf)は`errorCode`を定義し、`INSUFFICIENT_PRIVILEGES`を値の例として挙げています。**「コードで分岐する場合は`reduceErrors`を使わない」という公式の指定はありません。** `reduceErrors`は表示文言を返すため、分岐には元の`error`を使う、という判断です。
-
-#### 3. いつも同じ案内を出したい場合は？
-
-内部のエラー文言を利用者に見せず、決まった案内だけを表示したい場合です。
-
-```js
-try {
-    await saveRecord();
-} catch (error) {
-    this.errorMessage = '保存できませんでした。時間をおいて再度お試しください。';
-    console.error(error); // 開発時の原因調査用
-}
-```
-
-**公式資料の該当箇所：** [Salesforce Developers Blog「Displaying and logging errors」](https://developer.salesforce.com/blogs/2020/08/error-handling-best-practices-for-lightning-web-components)は、利用者に分かりやすい表示と`console.error()`による記録に触れています。**「常に固定メッセージを表示する」という公式の推奨はありません。** この例の文言は画面設計に応じた選択です。
-
-#### 4. フォームの入力をチェックしたい場合は？
-
-必須項目など、送信前の入力チェックです。これはSalesforceから返ったエラーを読み取る処理ではありません。
+**3. 送信前にフォームの入力を確認する**
 
 ```html
 <lightning-input label="名前" required></lightning-input>
@@ -93,16 +54,12 @@ try {
 ```js
 const input = this.template.querySelector('lightning-input');
 input.reportValidity();
-if (!input.validity.valid) {
-    return; // 入力エラーを表示し、送信しない
-}
+if (!input.validity.valid) return;
 ```
 
-**公式リファレンスの該当箇所：** [`lightning-input`の「Input Validation」](https://developer.salesforce.com/docs/platform/lightning-component-reference/guide/lightning-input.html?type=Develop)に、`required`、`reportValidity()`、`validity.valid`による入力チェックが説明されています。
+これはSalesforceから返ったエラーを読む処理ではありません。**公式リファレンスの該当箇所：** [`lightning-input`の「Input Validation」](https://developer.salesforce.com/docs/platform/lightning-component-reference/guide/lightning-input.html?type=Develop)に、`required`、`reportValidity()`、`validity.valid`が説明されています。
 
-### Q. 迷ったら、どう判断すればよいですか？
-
-**「返ってきたエラーから表示文言を取り出す」なら`reduceErrors`を検討。** エラーコードでの分岐、固定文言の表示、送信前の入力チェックなら、その目的に合った処理を直接書けば十分です。なお、`reduceErrors`を使う場合でも、取り出した文言が利用者に分かりやすいかは確認しましょう。
+**まとめ：表示文言を取り出すなら`reduceErrors`を検討。それ以外は、目的に合う処理を直接書きます。** 「常に使う」「この3例では使わない」と定めた公式ルールはありません。
 
 ---
 
